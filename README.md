@@ -10,8 +10,8 @@ Production-ready implementation of **TAP-Net** (Transformer-based Actor-critic P
 
 This project implements the state-of-the-art algorithm from the paper:
 
-> **"A deep reinforcement learning approach for the 3D bin packing problem with online item arrival"**
-> Deng et al., 2023, *Expert Systems with Applications*
+> **"Solving 3D packing problem using Transformer network and reinforcement learning"**
+> Que et al., 2023, *Expert Systems with Applications*
 
 ### Key Features
 
@@ -330,7 +330,7 @@ black src/ train.py evaluate.py
 flake8 src/ train.py evaluate.py
 ``` -->
 
-## Citation
+<!-- ## Citation
 
 If you use this code, please cite the original paper:
 
@@ -344,7 +344,7 @@ If you use this code, please cite the original paper:
   year={2023},
   publisher={Elsevier}
 }
-```
+``` -->
 <!-- 
 ## License
 
