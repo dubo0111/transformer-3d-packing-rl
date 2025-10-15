@@ -1,5 +1,7 @@
 # 3D Bin Packing with Deep Reinforcement Learning
 
+> ⚠️ **Development Warning**: This project is currently under development and may not be fully stable or feature-complete.
+
 Production-ready implementation of **TAP-Net** (Transformer-based Actor-critic Packing Network) for solving the 3D bin packing problem using Deep Reinforcement Learning and PPO.
 
 ## Quick Start
