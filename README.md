@@ -303,7 +303,7 @@ import torch
 torch.autograd.set_detect_anomaly(True)
 ```
 
-## Development
+<!-- ## Development
 
 ### Running Tests
 
@@ -329,7 +329,7 @@ black src/ train.py evaluate.py
 
 # Check style
 flake8 src/ train.py evaluate.py
-```
+``` -->
 
 ## Citation
 
@@ -346,7 +346,7 @@ If you use this code, please cite the original paper:
   publisher={Elsevier}
 }
 ```
-
+<!-- 
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
@@ -383,6 +383,6 @@ For questions or issues:
 - [ ] Comparison with other RL algorithms (DQN, A3C)
 - [ ] Web interface for interactive packing
 
----
+--- -->
 
 **Happy Packing!** 📦
