@@ -12,7 +12,6 @@ This project implements the state-of-the-art algorithm from the paper:
 
 > **"A deep reinforcement learning approach for the 3D bin packing problem with online item arrival"**
 > Deng et al., 2023, *Expert Systems with Applications*
-> Paper: `reference/1-s2.0-S0957417422021716-main.pdf`
 
 ### Key Features
 
