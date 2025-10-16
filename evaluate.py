@@ -21,6 +21,14 @@ from src.utils.metrics import MetricsCalculator
 from src.visualization.plotly_3d import PackingVisualizer
 from src.visualization.training_plots import TrainingPlotter
 
+# Optional MIP solver import
+try:
+    from src.utils.mip_solver import MIPSolver, format_mip_solution
+    from src.utils.mip_to_container import mip_solution_to_container
+    MIP_AVAILABLE = True
+except ImportError:
+    MIP_AVAILABLE = False
+
 
 def parse_args():
     """Parse command line arguments."""
@@ -76,6 +84,19 @@ def parse_args():
         type=str,
         default="outputs",
         help="Directory to save outputs",
+    )
+
+    # MIP Baseline Comparison
+    parser.add_argument(
+        "--compare-mip",
+        action="store_true",
+        help="Compare RL performance with MIP optimal baseline",
+    )
+    parser.add_argument(
+        "--mip-timeout",
+        type=int,
+        default=300,
+        help="MIP solver timeout in seconds (default: 300)",
     )
 
     return parser.parse_args()
@@ -138,14 +159,30 @@ def main():
 
     logger.info("Model loaded successfully")
 
+    # Initialize MIP solver if requested
+    mip_solver = None
+    if args.compare_mip:
+        if not MIP_AVAILABLE:
+            logger.warning("MIP comparison requested but Gurobi not available. Skipping MIP comparison.")
+            args.compare_mip = False
+        else:
+            logger.info(f"Initializing MIP solver (timeout={args.mip_timeout}s)...")
+            mip_solver = MIPSolver(timeout=args.mip_timeout, verbose=False)
+
     # Run evaluation
     logger.info(f"Evaluating over {args.n_episodes} episodes...")
 
     episode_metrics_list = []
+    mip_metrics_list = []
     containers_for_viz = []
+    mip_containers_for_viz = []
 
     for episode_idx in range(args.n_episodes):
         obs, info = env.reset()
+
+        # Store initial items for MIP comparison
+        if args.compare_mip:
+            episode_items = [(item.length, item.width, item.height) for item in env.items]
         episode_reward = 0.0
         done = False
         steps = 0
@@ -198,6 +235,29 @@ def main():
                    f"Packed={int(metrics['num_packed'])}, "
                    f"Reward={episode_reward:.3f}")
 
+        # Run MIP solver on same items if requested
+        if args.compare_mip:
+            logger.info(f"  Running MIP solver for episode {episode_idx + 1}...")
+            mip_solution = mip_solver.solve(
+                container_size=env.container_size,
+                boxes=episode_items
+            )
+            mip_metrics_list.append(mip_solution)
+
+            logger.info(f"  MIP: Utilization={mip_solution['utilization']:.2%}, "
+                       f"Packed={mip_solution['num_packed']}/{mip_solution['num_total']}, "
+                       f"Time={mip_solution['solve_time']:.2f}s, "
+                       f"Optimal={'Yes' if mip_solution['optimal'] else 'No'}")
+
+            # Convert MIP solution to container for visualization
+            if args.visualize and episode_idx < 5:
+                mip_container = mip_solution_to_container(
+                    mip_solution,
+                    container_size=env.container_size,
+                    grid_size=env.grid_size
+                )
+                mip_containers_for_viz.append(mip_container)
+
     # Aggregate metrics
     logger.info("\n" + "=" * 80)
     logger.info("EVALUATION RESULTS")
@@ -218,7 +278,40 @@ def main():
             aggregate_metrics[f"min_{key}"] = np.min(values)
 
     # Print results
-    MetricsCalculator.print_metrics(aggregate_metrics, "Evaluation Metrics")
+    MetricsCalculator.print_metrics(aggregate_metrics, "RL Agent Metrics")
+
+    # Print MIP comparison if available
+    if args.compare_mip and mip_metrics_list:
+        logger.info("\n" + "=" * 80)
+        logger.info("MIP BASELINE COMPARISON")
+        logger.info("=" * 80)
+
+        # Aggregate MIP metrics
+        mip_utilizations = [m['utilization'] for m in mip_metrics_list]
+        mip_solve_times = [m['solve_time'] for m in mip_metrics_list]
+        mip_optimal_count = sum(1 for m in mip_metrics_list if m['optimal'])
+
+        rl_utilizations = [m['utilization'] for m in episode_metrics_list]
+
+        # Compute comparison metrics
+        import numpy as np
+        mean_mip_util = np.mean(mip_utilizations)
+        mean_rl_util = np.mean(rl_utilizations)
+
+        if mean_mip_util > 0:
+            optimality_gap = (mean_mip_util - mean_rl_util) / mean_mip_util * 100
+            relative_performance = mean_rl_util / mean_mip_util
+        else:
+            optimality_gap = 0.0
+            relative_performance = 1.0
+
+        logger.info(f"MIP Utilization (mean):    {mean_mip_util:.2%}")
+        logger.info(f"RL Utilization (mean):     {mean_rl_util:.2%}")
+        logger.info(f"Optimality Gap:            {optimality_gap:.2f}%")
+        logger.info(f"Relative Performance:      {relative_performance:.2%}")
+        logger.info(f"MIP Solve Time (mean):     {np.mean(mip_solve_times):.2f}s")
+        logger.info(f"MIP Optimal Solutions:     {mip_optimal_count}/{len(mip_metrics_list)}")
+        logger.info("=" * 80)
 
     # Generate visualizations
     if args.visualize:
@@ -231,20 +324,39 @@ def main():
         for idx, container in enumerate(containers_for_viz):
             logger.info(f"Visualizing episode {idx + 1}...")
 
-            fig = visualizer.visualize_container(
-                container,
-                show_height_map=False,
-                show_container_bounds=True,
-                show_labels=True,
-                title=f"Episode {idx + 1} (Utilization: {container.utilization:.1%})",
-            )
+            # Use side-by-side comparison if MIP is enabled
+            if args.compare_mip and idx < len(mip_containers_for_viz):
+                mip_container = mip_containers_for_viz[idx]
 
-            if args.save_html:
-                html_path = output_dir / f"episode_{idx + 1}.html"
-                visualizer.save_html(str(html_path))
-                logger.info(f"  Saved to: {html_path}")
+                # Create side-by-side RL vs MIP visualization
+                fig = PackingVisualizer.compare_rl_vs_mip(
+                    rl_container=container,
+                    mip_container=mip_container,
+                    episode_num=idx + 1
+                )
+
+                if args.save_html:
+                    html_path = output_dir / f"episode_{idx + 1}_comparison.html"
+                    fig.write_html(str(html_path))
+                    logger.info(f"  Saved comparison to: {html_path}")
+                else:
+                    fig.show()
             else:
-                visualizer.show()
+                # Standard single visualization (RL only)
+                fig = visualizer.visualize_container(
+                    container,
+                    show_height_map=False,
+                    show_container_bounds=True,
+                    show_labels=True,
+                    title=f"Episode {idx + 1} (Utilization: {container.utilization:.1%})",
+                )
+
+                if args.save_html:
+                    html_path = output_dir / f"episode_{idx + 1}.html"
+                    visualizer.save_html(str(html_path))
+                    logger.info(f"  Saved to: {html_path}")
+                else:
+                    visualizer.show()
 
         logger.info(f"Visualizations saved to: {output_dir}")
 
@@ -260,13 +372,43 @@ def main():
         f.write(f"Episodes: {args.n_episodes}\n")
         f.write(f"Deterministic: {args.deterministic}\n\n")
 
-        f.write("Aggregate Metrics:\n")
+        f.write("RL Agent Metrics:\n")
         f.write("-" * 80 + "\n")
         for key, value in aggregate_metrics.items():
             if isinstance(value, float):
                 f.write(f"{key:.<40} {value:>10.4f}\n")
             else:
                 f.write(f"{key:.<40} {value:>10}\n")
+
+        # Add MIP comparison to file
+        if args.compare_mip and mip_metrics_list:
+            f.write("\n" + "=" * 80 + "\n")
+            f.write("MIP Baseline Comparison\n")
+            f.write("=" * 80 + "\n\n")
+
+            import numpy as np
+            mip_utilizations = [m['utilization'] for m in mip_metrics_list]
+            mip_solve_times = [m['solve_time'] for m in mip_metrics_list]
+            mip_optimal_count = sum(1 for m in mip_metrics_list if m['optimal'])
+            rl_utilizations = [m['utilization'] for m in episode_metrics_list]
+
+            mean_mip_util = np.mean(mip_utilizations)
+            mean_rl_util = np.mean(rl_utilizations)
+
+            if mean_mip_util > 0:
+                optimality_gap = (mean_mip_util - mean_rl_util) / mean_mip_util * 100
+                relative_performance = mean_rl_util / mean_mip_util
+            else:
+                optimality_gap = 0.0
+                relative_performance = 1.0
+
+            f.write(f"MIP Utilization (mean):      {mean_mip_util:.4f}\n")
+            f.write(f"RL Utilization (mean):       {mean_rl_util:.4f}\n")
+            f.write(f"Optimality Gap:              {optimality_gap:.4f}%\n")
+            f.write(f"Relative Performance:        {relative_performance:.4f}\n")
+            f.write(f"MIP Solve Time (mean):       {np.mean(mip_solve_times):.4f}s\n")
+            f.write(f"MIP Solve Time (std):        {np.std(mip_solve_times):.4f}s\n")
+            f.write(f"MIP Optimal Solutions:       {mip_optimal_count}/{len(mip_metrics_list)}\n")
 
     logger.info(f"Metrics saved to: {metrics_file}")
     logger.info("=" * 80)

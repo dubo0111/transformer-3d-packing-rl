@@ -75,7 +75,6 @@ transformer-3d-packing-rl/
 ├── train.py                # Main training script
 ├── evaluate.py             # Evaluation script
 ├── requirements.txt        # Python dependencies
-├── CLAUDE.md               # Development guide
 └── README.md               # This file
 ```
 

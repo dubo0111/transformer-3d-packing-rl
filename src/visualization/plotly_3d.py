@@ -417,3 +417,109 @@ class PackingVisualizer:
         )
 
         return fig
+
+    @staticmethod
+    def compare_rl_vs_mip(
+        rl_container: Container,
+        mip_container: Container,
+        episode_num: int = 1,
+    ) -> go.Figure:
+        """
+        Create side-by-side comparison of RL and MIP solutions.
+
+        Args:
+            rl_container: Container with RL solution
+            mip_container: Container with MIP solution
+            episode_num: Episode number for title
+
+        Returns:
+            Plotly figure with side-by-side comparison
+        """
+        from plotly.subplots import make_subplots
+
+        # Calculate metrics
+        rl_util = rl_container.utilization
+        mip_util = mip_container.utilization
+        gap = (mip_util - rl_util) / mip_util * 100 if mip_util > 0 else 0
+
+        # Create titles with metrics
+        rl_title = (
+            f"<b>RL Agent</b><br>"
+            f"Utilization: {rl_util:.2%}<br>"
+            f"Packed: {len(rl_container.packed_items)} items"
+        )
+        mip_title = (
+            f"<b>MIP Optimal</b><br>"
+            f"Utilization: {mip_util:.2%}<br>"
+            f"Packed: {len(mip_container.packed_items)} items"
+        )
+
+        # Create subplots
+        fig = make_subplots(
+            rows=1,
+            cols=2,
+            specs=[[{"type": "scene"}, {"type": "scene"}]],
+            subplot_titles=[rl_title, mip_title],
+            horizontal_spacing=0.05,
+        )
+
+        visualizer = PackingVisualizer()
+
+        # Add RL solution (left)
+        rl_fig = visualizer.visualize_container(
+            rl_container,
+            show_container_bounds=True,
+            show_labels=False
+        )
+        for trace in rl_fig.data:
+            fig.add_trace(trace, row=1, col=1)
+
+        # Add MIP solution (right)
+        mip_fig = visualizer.visualize_container(
+            mip_container,
+            show_container_bounds=True,
+            show_labels=False
+        )
+        for trace in mip_fig.data:
+            fig.add_trace(trace, row=1, col=2)
+
+        # Update layout
+        fig.update_layout(
+            title=dict(
+                text=f"<b>Episode {episode_num}: RL vs MIP Comparison</b><br>"
+                     f"<sub>Optimality Gap: {gap:.2f}% | "
+                     f"Relative Performance: {(rl_util/mip_util*100 if mip_util > 0 else 100):.1f}%</sub>",
+                x=0.5,
+                xanchor='center',
+            ),
+            showlegend=True,
+            legend=dict(
+                x=1.02,
+                y=0.5,
+                xanchor='left',
+                yanchor='middle',
+                bgcolor='rgba(255, 255, 255, 0.8)',
+                bordercolor='rgba(0, 0, 0, 0.2)',
+                borderwidth=1,
+            ),
+            height=600,
+            width=1400,
+        )
+
+        # Update scene properties for both subplots
+        for i in [1, 2]:
+            scene_name = f'scene{i}' if i > 1 else 'scene'
+            fig.update_layout({
+                scene_name: dict(
+                    xaxis=dict(title="Length", range=[0, rl_container.length]),
+                    yaxis=dict(title="Width", range=[0, rl_container.width]),
+                    zaxis=dict(title="Height", range=[0, rl_container.height]),
+                    aspectmode="data",
+                    camera=dict(
+                        eye=dict(x=1.5, y=1.5, z=1.2),
+                        center=dict(x=0, y=0, z=0),
+                    ),
+                )
+            })
+
+        return fig
