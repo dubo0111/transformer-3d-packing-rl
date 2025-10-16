@@ -3,12 +3,12 @@
 
 # Environment Configuration
 environment:
-  container_size: [10.0, 10.0, 10.0]  # Container dimensions [L, W, H]
+  container_size: [10.0, 10.0, 10.0]   # Container dimensions [L, W, H]
   grid_size: 10                        # Height map resolution
   max_items: 50                        # Maximum items per episode
-  item_size_range: [0.1, 0.5]         # Item size as fraction of container
+  item_size_range: [0.1, 0.5]          # Item size as fraction of container
   enable_action_mask: true             # Use heuristic action masking
-  reward_type: "hybrid"                # Reward function: hybrid, utilization, dense
+  reward_type: "utilization"           # Reward function: hybrid, utilization, dense
   normalize_state: true                # Normalize state features
 
 # Model Architecture Configuration
