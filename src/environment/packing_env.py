@@ -226,6 +226,7 @@ class PackingEnv(gym.Env):
         # Update state
         if success:
             self.current_item_idx += 1
+            self.invalid_action_count = 0  # Reset counter on successful placement
         else:
             self.invalid_action_count += 1
 
@@ -350,11 +351,21 @@ class PackingEnv(gym.Env):
             return -1.0
 
         if self.reward_type == "utilization":
-            # Simple utilization-based reward
+            # Legacy: Absolute utilization (for backward compatibility)
+            # NOTE: This returns cumulative utilization, not delta. Actions later in
+            # the episode receive higher rewards even for same volume contribution.
+            # For new experiments, prefer "delta_utilization" or "dense".
             return self.container.utilization
 
+        elif self.reward_type == "delta_utilization":
+            # Delta utilization reward (recommended)
+            # Each action is rewarded proportionally to the utilization improvement it provides.
+            # This gives fair credit assignment regardless of when the action occurs.
+            delta_utilization = item.volume / self.container.volume
+            return delta_utilization
+
         elif self.reward_type == "dense":
-            # Dense reward: immediate feedback
+            # Dense reward: immediate feedback (same as delta_utilization)
             delta_volume = item.volume
             reward = delta_volume / self.container.volume
             return reward

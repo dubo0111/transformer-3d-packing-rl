@@ -214,6 +214,10 @@ class PPOTrainer:
                     obs = next_obs
                     info = next_info
 
+        # Store last observation for bootstrap value calculation
+        self.last_obs = obs
+        self.last_info = info
+
         # Compute statistics
         stats = {
             "mean_episode_reward": np.mean(episode_rewards) if episode_rewards else 0.0,
@@ -298,7 +302,7 @@ class PPOTrainer:
                 policy_loss = -torch.min(surr1, surr2).mean()
 
                 # Value loss (MSE between predicted and target returns)
-                new_values = new_values.squeeze()
+                new_values = new_values.squeeze(-1)  # Only remove last dimension
                 value_loss = nn.functional.mse_loss(new_values, batch_returns)
 
                 # Entropy bonus (encourages exploration)
@@ -364,9 +368,8 @@ class PPOTrainer:
             collection_stats = self.collect_rollouts(n_steps)
 
             # Compute returns and advantages
-            # Get last value for bootstrapping
-            obs, _ = self.env.reset()
-            height_map, item_features = self._parse_observation(obs)
+            # Get last value for bootstrapping using the actual last observation from rollout
+            height_map, item_features = self._parse_observation(self.last_obs)
             with torch.no_grad():
                 height_map_tensor = torch.from_numpy(height_map).unsqueeze(0).to(self.device)
                 item_features_tensor = torch.from_numpy(item_features).unsqueeze(0).to(self.device)

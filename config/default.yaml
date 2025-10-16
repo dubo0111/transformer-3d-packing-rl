@@ -8,7 +8,7 @@ environment:
   max_items: 50                        # Maximum items per episode
   item_size_range: [0.1, 0.5]          # Item size as fraction of container
   enable_action_mask: true             # Use heuristic action masking
-  reward_type: "utilization"           # Reward function: hybrid, utilization, dense
+  reward_type: "utilization"           # Reward function: delta_utilization (recommended), utilization (legacy), dense, hybrid
   normalize_state: true                # Normalize state features
 
 # Model Architecture Configuration

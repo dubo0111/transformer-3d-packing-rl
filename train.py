@@ -117,11 +117,18 @@ def main():
     if args.experiment_name is not None:
         config["experiment"]["name"] = args.experiment_name
 
-    # Set random seeds
+    # Set random seeds for reproducibility
     seed = config["experiment"]["seed"]
+    import random
+    import numpy as np
+
+    random.seed(seed)
+    np.random.seed(seed)
     torch.manual_seed(seed)
-    if torch.cuda.is_available():
-        torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)  # For all GPUs
+
+    # Note: For full determinism, set torch.backends.cudnn.deterministic=True
+    # and torch.backends.cudnn.benchmark=False, but this may reduce performance.
 
     logger.info(f"Random seed: {seed}")
 

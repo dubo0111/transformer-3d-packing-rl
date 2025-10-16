@@ -1,82 +1,108 @@
 # 3D Bin Packing with Deep Reinforcement Learning
 
-> ⚠️ **Development Warning**: This project is currently under development and may not be fully stable or feature-complete.
-
-Production-ready implementation of **TAP-Net** (Transformer-based Actor-critic Packing Network) for solving the 3D bin packing problem using Deep Reinforcement Learning and PPO.
+Transformer-based neural network trained with PPO to solve 3D bin packing problems.
 
 ## Quick Start
+
+### Installation
+
+```bash
+pip install -r requirements.txt
+```
 
 ### Training
 
 ```bash
-# Train with default configuration
+# Basic training
 python train.py
 
 # Train on GPU
-python train.py --device cuda
+python train.py --device cuda --total-timesteps 2000000
 
-# Train with custom timesteps
-python train.py --total-timesteps 2000000 --device cuda
-
-# Resume from checkpoint
+# Resume training
 python train.py --resume
 ```
 
 ### Monitoring
 
 ```bash
-# Launch TensorBoard (in a separate terminal)
 tensorboard --logdir logs/
-
-# Open browser to http://localhost:6006
 ```
+
+Open http://localhost:6006
 
 ### Evaluation
 
 ```bash
-# Evaluate trained model
-python evaluate.py --checkpoint checkpoints/best.pt
+# Evaluate model
+python evaluate.py --checkpoint checkpoints/best.pt --n-episodes 50
 
-# Evaluate with 3D visualization
+# With 3D visualization
 python evaluate.py --checkpoint checkpoints/best.pt --visualize --save-html
 
-# Evaluate 50 episodes
-python evaluate.py --checkpoint checkpoints/best.pt --n-episodes 50
+# Compare with MIP optimal solution (requires Gurobi)
+python evaluate.py --checkpoint checkpoints/best.pt --compare-mip --mip-timeout 300
 ```
+
+## Features
+
+- **Transformer-based Policy**: Separate encoders for container state and unpacked boxes
+- **Sequential Actions**: Selects position, then box, then orientation
+- **Height Map + Plane Features**: Enhanced spatial representation for better decision-making
+- **PPO Training**: Stable policy gradient training with GAE
+- **MIP Baseline**: Compare against optimal solutions using Gurobi (optional)
+- **Interactive Visualization**: 3D plots with side-by-side RL vs MIP comparison
 
 ## Project Structure
 
 ```
-transformer-3d-packing-rl/
-├── src/
-│   ├── environment/        # 3D packing environment
-│   │   ├── container.py    # Container with height map
-│   │   ├── item.py         # Items with 6 rotations
-│   │   ├── action_mask.py  # Heuristic action masking
-│   │   └── packing_env.py  # Gymnasium environment
-│   ├── models/             # Neural network models
-│   │   ├── tap_net.py      # Main TAP-Net model
-│   │   ├── actor.py        # Transformer actor network
-│   │   └── critic.py       # Value network
-│   ├── training/           # Training infrastructure
-│   │   ├── ppo_trainer.py  # PPO algorithm
-│   │   ├── replay_buffer.py # Rollout buffer with GAE
-│   │   └── checkpoint_manager.py # Checkpoint management
-│   ├── visualization/      # Visualization tools
-│   │   ├── plotly_3d.py    # 3D interactive plots
-│   │   └── training_plots.py # Training curves
-│   └── utils/              # Utilities
-│       ├── config.py       # Configuration management
-│       ├── logger.py       # Logging setup
-│       └── metrics.py      # Evaluation metrics
-├── config/
-│   └── default.yaml        # Default hyperparameters
-├── reference/              # Paper reference code
-├── train.py                # Main training script
-├── evaluate.py             # Evaluation script
-├── requirements.txt        # Python dependencies
-└── README.md               # This file
+src/
+├── environment/      # 3D packing environment
+├── models/          # Transformer actor-critic networks
+├── training/        # PPO trainer
+├── visualization/   # 3D plots
+└── utils/          # Config, logging, MIP optimizer
+
+config/default.yaml  # Hyperparameters
+train.py            # Training script
+evaluate.py         # Evaluation script
 ```
 
+## Configuration
 
-**Happy Packing!** 📦
+Edit `config/default.yaml`:
+
+- **Environment**: Container size, item count/dimensions
+- **Model**: Hidden dim, layers, attention heads
+- **Training**: Learning rates, batch size, buffer size
+- **PPO**: Discount, GAE lambda, clip epsilon
+
+Or use CLI:
+```bash
+python train.py --total-timesteps 1000000 --max-items 30 --device cuda
+```
+
+## MIP Baseline
+
+Requires Gurobi:
+
+```bash
+python evaluate.py --checkpoint checkpoints/best.pt \
+  --compare-mip --mip-timeout 300 \
+  --visualize --save-html --n-episodes 10
+```
+
+Generates side-by-side visualizations and optimality gap analysis.
+
+## Security Note
+
+**⚠️ Checkpoint Loading Security**: This project uses `weights_only=False` when loading PyTorch checkpoints to support full model state restoration. Only load checkpoints from trusted sources, as malicious checkpoints could execute arbitrary code. Do not load checkpoints from untrusted or unknown sources.
+
+If you need to load checkpoints from untrusted sources, consider:
+1. Inspecting the checkpoint contents first
+2. Running in an isolated environment (container/VM)
+3. Using `weights_only=True` (may require code modifications)
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
